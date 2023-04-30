@@ -15,7 +15,7 @@ mkdir -p sources
 wget -r -A.html -P my.documentation.rtdocs https://mydocumentation.readthedocs.io/en/latest/
 ```
 
-## launch postgres pgvector storage
+## launch PostgreSQL pgvector storage
 
 ```
 export OPENAI_API_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
