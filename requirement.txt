@@ -1,0 +1,8 @@
+openai
+langchain
+pgvector
+tiktoken
+psycopg
+psycopg2-binary
+psycopg_binary
+beautifulsoup4
