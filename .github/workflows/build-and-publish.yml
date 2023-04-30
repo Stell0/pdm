@@ -25,5 +25,5 @@ jobs:
           context: .
           file: ./Containerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/pdm:latest
+          tags: ghcr.io/stell0/pdm:latest
 
