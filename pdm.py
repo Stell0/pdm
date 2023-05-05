@@ -122,11 +122,14 @@ def data_ingest(vectordb: VectorStore, connection: psycopg.connection, cursor: p
 		# ingest new sources
 		if source.endswith(".txt"):
 			# load txt data
-			#loader = TextLoader("sources/"+source)
+			loader = TextLoader("sources/"+source)
 			pass
-		if source.endswith(".it") or source.endswith(".org"):
+		elif source.endswith(".it") or source.endswith(".org"):
 			# Load ReadTheDocs data
 			loader = MyReadTheDocsLoader("sources/"+source, features='html.parser', encoding='utf-8', errors='ignore')
+		else:
+			continue
+		
 		documents = loader.load()
 		# get all sources already in db
 		already_ingested = []
@@ -155,7 +158,7 @@ if __name__ == "__main__":
 
 	# chat with the user
 	from langchain.chains.llm import LLMChain
-	from langchain.callbacks.base import CallbackManager
+	from langchain.callbacks.manager import CallbackManager
 	from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 	from langchain.chains.conversational_retrieval.prompts import CONDENSE_QUESTION_PROMPT, QA_PROMPT
 	from langchain.chains.question_answering import load_qa_chain
