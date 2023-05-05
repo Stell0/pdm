@@ -4,10 +4,12 @@ WORKDIR /app
 
 COPY requirement.txt .
 
-RUN mkdir -p /app/sources
-
-COPY pdm.py pdm.py
+COPY db.py /app/db.py
+COPY server.py /app/server.py
+COPY queryLLM.py /app/queryLLM.py
+COPY console.py /app/console.py
+COPY loaderWrapper.py /app/loaderWrapper.py
 
 RUN pip install --no-cache-dir -r requirement.txt
 
-CMD ["python", "pdm.py"]
+CMD ["python", "server.py"]

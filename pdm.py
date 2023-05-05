@@ -68,37 +68,42 @@ class MyReadTheDocsLoader(ReadTheDocsLoader):
 def initdb():
 	# initialize db
 	embedding = OpenAIEmbeddings()
-	CONNECTION_STRING = PGVector.connection_string_from_db_params(
-    	driver=os.environ.get("PGVECTOR_DRIVER", "psycopg2"),
-    	host=os.environ.get("PGVECTOR_HOST", "127.0.0.1"),
-    	port=int(os.environ.get("PGVECTOR_PORT", "5432")),
-    	database=os.environ.get("PGVECTOR_DATABASE", "postgres"),
-    	user=os.environ.get("PGVECTOR_USER", "postgres"),
-    	password=os.environ.get("PGVECTOR_PASSWORD", "postgres"),
-	)
+	dbname=os.environ.get("POSTGRES_DATABASE", "postgres")
+	host=os.environ.get("POSTGRES_HOST", "127.0.0.1")
+	port=os.environ.get("POSTGRES_PORT", "5432")
+	user=os.environ.get("POSTGRES_USER", "postgres")
+	password=os.environ.get("POSTGRES_PASSWORD", "postgres")
 
-	# also connect to postgres and query it
 	connection_string = 'dbname={dbname} host={host} port=5432 user={user} password={password}'
 	connection_string = connection_string.format(
-    	dbname=os.environ.get("PGVECTOR_DATABASE", "postgres"),
-		host=os.environ.get("PGVECTOR_HOST", "127.0.0.1"),
-		port=os.environ.get("PGVECTOR_PORT", "5432"),
-		user=os.environ.get("PGVECTOR_USER", "postgres"),
-		password=os.environ.get("PGVECTOR_PASSWORD", "postgres")
-	)
+        dbname=dbname,
+        host=host,
+        port=port,
+        user=user,
+        password=password
+    )
+
 	connection = psycopg.connect(connection_string)
 	connection.autocommit = True
 	cursor = connection.cursor()
-
-	#create vector extension if not exists
-	cursor.execute("CREATE EXTENSION IF NOT EXISTS vector") 
-
+	cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
+	
+	CONNECTION_STRING = PGVector.connection_string_from_db_params(
+    	driver="psycopg2",
+    	host=host,
+    	port=port,
+    	database=dbname,
+    	user=user,
+    	password=password,
+	)
 	vectordb = PGVector(
 		connection_string=CONNECTION_STRING,
 		embedding_function=embedding,
 		distance_strategy=DistanceStrategy.COSINE
 	)
-
+	vectordb.create_vector_extension()
+	vectordb.create_tables_if_not_exists()
+	vectordb.create_collection()
 	return (vectordb, connection, cursor)
 
 def data_ingest(vectordb: VectorStore, connection: psycopg.connection, cursor: psycopg.cursor):
@@ -107,21 +112,32 @@ def data_ingest(vectordb: VectorStore, connection: psycopg.connection, cursor: p
 
 	for source in sources:
 		# skip source if it is already in db
-		cursor.execute("select count(*) from public.langchain_pg_embedding where cmetadata->>'source' LIKE 'sources/"+source+"%';")
-		if cursor.fetchone()[0] > 0:
-			continue
+		try:
+			cursor.execute("select count(*) from public.langchain_pg_embedding where cmetadata->>'source' LIKE 'sources/"+source+"%';")
+			if cursor.fetchone()[0] > 0:
+				continue
+		except:
+			pass
 		print("Ingesting new source: ", source)
 		# ingest new sources
 		if source.endswith(".txt"):
 			# load txt data
 			loader = TextLoader("sources/"+source)
-		if source.endswith(".rtdocs"):
+			pass
+		elif source.endswith(".it") or source.endswith(".org"):
 			# Load ReadTheDocs data
 			loader = MyReadTheDocsLoader("sources/"+source, features='html.parser', encoding='utf-8', errors='ignore')
+		else:
+			continue
+		
 		documents = loader.load()
 		# get all sources already in db
-		cursor.execute("select distinct(cmetadata->>'source') from public.langchain_pg_embedding;")
-		already_ingested = cursor.fetchall()
+		already_ingested = []
+		try:
+			cursor.execute("select distinct(cmetadata->>'source') from public.langchain_pg_embedding;")
+			already_ingested = cursor.fetchall()
+		except:
+			pass
 		# filter out already ingested sources
 		documents = [doc for doc in documents if doc.metadata["source"] not in already_ingested]
 		# Add file permissions to metadata
@@ -134,13 +150,6 @@ def data_ingest(vectordb: VectorStore, connection: psycopg.connection, cursor: p
 		texts = text_splitter.split_documents(documents)
 		vectordb.add_documents(texts)
 
-def data_ingest_from_ddg(question: str, vectordb: VectorStore, connection: psycopg.connection, cursor: psycopg.cursor):
-	# condense the question into a duckduckgo query
-	# ask ddg
-	# check if answer is already in db
-	# if not, add it
-	pass
-
 if __name__ == "__main__":
 	# initialize vector db
 	(vectordb, connection, cursor) = initdb()
@@ -149,7 +158,7 @@ if __name__ == "__main__":
 
 	# chat with the user
 	from langchain.chains.llm import LLMChain
-	from langchain.callbacks.base import CallbackManager
+	from langchain.callbacks.manager import CallbackManager
 	from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 	from langchain.chains.conversational_retrieval.prompts import CONDENSE_QUESTION_PROMPT, QA_PROMPT
 	from langchain.chains.question_answering import load_qa_chain
@@ -173,7 +182,7 @@ if __name__ == "__main__":
 		)
 
 	chat_history = []
-	query = input("Ciao, sono il tuo assistente Nethesis. Sono qui per rispondere alle tue domande, prova a chiedermi qualcosa\n")
+	query = input("Hi! I'm your personal data manager. Ask me something about your data.\n")
 	result = qa({"question": query, "chat_history": chat_history})
 	print("\n")
 
@@ -181,12 +190,12 @@ if __name__ == "__main__":
 		sources = []
 		for doc in result["source_documents"]:
 			sources.append(doc.metadata["source"])
-			#print("Fonte: "+doc.metadata["source"])
-			#print("Proprietario: "+str(doc.metadata["owner"]))
-			#print("Gruppo: "+str(doc.metadata["group"]))
-			#print("Permessi: "+str(doc.metadata["permissions"]))
+			#print("Source: "+doc.metadata["source"])
+			#print("Owner: "+str(doc.metadata["owner"]))
+			#print("Grup: "+str(doc.metadata["group"]))
+			#print("Permissions: "+str(doc.metadata["permissions"]))
 		sources = list(set(sources))
-		[print("Fonte: "+source) for source in sources]
+		[print("Source: "+source) for source in sources]
 		
 		print("-"*80)
 		
