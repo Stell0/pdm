@@ -15,15 +15,46 @@ mkdir -p sources
 wget -r -A.html -P my.documentation.rtdocs https://mydocumentation.readthedocs.io/en/latest/
 ```
 
-## launch PostgreSQL pgvector storage
+## launch PostgreSQL pgvector storage and application
 
 ```
 export OPENAI_API_KEY=xx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-export POSTGRES_PASSWORD=some-passowrd
-export PGVECTOR_PASSWORD=${POSTGRES_PASSWORD}
-podman pod create --name pdm --network=slirp4netns:allow_host_loopback=true --replace
-podman run --pod=pdm --name postgres -e POSTGRES_PASSWORD -d --replace docker.io/ankane/pgvector:latest
-podman run --pod=pdm --rm --interactive=true --name pdm -e PGVECTOR_PASSWORD -e OPENAI_API_KEY -v ./sources:/app/sources --replace ghcr.io/stell0/pdm
+export POSTGRES_PASSWORD=some-password
+```
+Other available environment variables are:
+```
+POSTGRES_DATABASE - Default: postgres
+POSTGRES_HOST - Default: 127.0.0.1
+POSTGRES_PORT - Default: 5432
+POSTGRES_USER - Default: postgres
+```
+
+
+```
+podman run --name postgres -e POSTGRES_PASSWORD -d -p 5432:5432 --replace docker.io/ankane/pgvector:latest
+```
+Launch API server
+```
+podman run --rm --interactive=true --name pdm-server -e POSTGRES_PASSWORD -e OPENAI_API_KEY -p 5000:5000 --network=host --replace ghcr.io/stell0/pdm
+```
+
+Upload data
+http://127.0.0.1:5000/upload
+
+List of sources
+GET http://127.0.0.1:5000/sources
+
+
+Ask something to the assistant
+The history parameter is optional, it is used to give context to the assistant if you want to follow up on a previous question.
+```
+curl 'http://127.0.0.1:5000/ask' -H 'Content-Type: application/json' -X POST --data '{"question": "What is CQR?","history":""}'
+```
+
+
+Launch interactive shell
+```
+podman exec -it --interactive=true --name pdm-cli -e POSTGRES_PASSWORD -e OPENAI_API_KEY pdm-server python3 console.py
 ```
 
 ## Langchain
