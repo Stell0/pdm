@@ -8,3 +8,4 @@ psycopg_binary
 beautifulsoup4
 pandoc
 flask
+unstructured
