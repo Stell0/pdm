@@ -31,7 +31,7 @@ POSTGRES_USER - Default: postgres
 
 
 ```
-podman run --name postgres -e POSTGRES_PASSWORD -d -p 5432:5432 --replace docker.io/ankane/pgvector:latest
+podman run --name postgres -e POSTGRES_PASSWORD -v pgdata:/var/lib/postgresql/data -d -p 5432:5432 --replace docker.io/ankane/pgvector:latest
 ```
 Launch API server
 ```
