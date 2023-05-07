@@ -18,16 +18,16 @@ class LoaderWrapper():
         if self.type == "file":
             self.metadata["source"] = os.path.basename(self.path)
             self.metadata["filetype"] = self.path.rsplit('.', 1)[1].lower()
-
-            if self.metadata["filetype"] == 'txt':
+            if self.metadata["filetype"] == '.txt':
                 loader = TextLoader(self.path)
-            elif self.metadata["filetype"] == 'pdf':
+            elif self.metadata["filetype"] == '.pdf':
                 loader = PyPDFLoader(self.path)
-            elif self.metadata["filetype"] == 'epub':
-                loader = UnstructuredEPubLoader(self.path)            
-            
-            
-        documents = loader.load()
+            elif self.metadata["filetype"] == '.epub':
+                loader = UnstructuredEPubLoader(self.path)
+            else:
+                raise Exception("Unsupported filetype")
+     
+            documents = loader.load()
 
         # update documents metadata
         for document in documents:

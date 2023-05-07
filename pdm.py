@@ -1,3 +1,5 @@
+import json
+import time
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import VectorStore
@@ -5,13 +7,15 @@ from langchain.vectorstores.pgvector import PGVector,DistanceStrategy
 from langchain.text_splitter import TokenTextSplitter
 from langchain.document_loaders import TextLoader
 from langchain.llms import OpenAI
-from typing import List
+from typing import Any, List, Optional
 from langchain.docstore.document import Document
 from langchain.chains import ConversationalRetrievalChain
 import os
 from pathlib import Path
 import psycopg
 from langchain.document_loaders import ReadTheDocsLoader
+from langchain.document_loaders.base import BaseLoader
+
 
 class MyReadTheDocsLoader(ReadTheDocsLoader):
 	def load(self) -> List[Document]:
@@ -64,6 +68,39 @@ class MyReadTheDocsLoader(ReadTheDocsLoader):
 				metadata = {"source": str(p)}
 			docs.append(Document(page_content=text, metadata=metadata))
 		return docs
+
+class FreshdeskLoader(BaseLoader):
+	def __init__(
+        self,
+        path: str,
+		**kwargs: Optional[Any]
+	):
+		"""Initialize path."""
+		self.path = path
+		self.bs_kwargs = kwargs
+		
+	def load(self) -> List[Document]:
+		"""Load documents."""
+		with open(self.path) as f:
+			data = json.load(f)
+			docs = []
+			metadata = {
+				"source": self.path,
+				"filetype": "freshdesk",
+				"timestamp": time.time(),
+				"type": "file",
+				"faq_id": data["id"],
+				"faq_title": data["title"],
+				"created_at": data["created_at"],
+				"updated_at": data["updated_at"],
+				"tags": data["tags"],
+				"category_id": data["category_id"],
+				"folder_id": data["folder_id"]
+				}
+			docs.append(Document(page_content=data["description_text"], metadata=metadata))
+			return docs
+
+
 
 def initdb():
 	# initialize db
@@ -127,6 +164,8 @@ def data_ingest(vectordb: VectorStore, connection: psycopg.connection, cursor: p
 		elif source.endswith(".it") or source.endswith(".org"):
 			# Load ReadTheDocs data
 			loader = MyReadTheDocsLoader("sources/"+source, features='html.parser', encoding='utf-8', errors='ignore')
+		elif source.endswith(".freshdesk.json"):
+			loader = FreshdeskLoader("sources/"+source)
 		else:
 			continue
 		
