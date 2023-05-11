@@ -76,12 +76,18 @@ def upload_file():
 # Ask a question to your data
 @app.route('/ask', methods=['POST'])
 def ask():
-    question = request.json.get('question')
-    history = request.json.get('history', '')
-    oracle = QueryLLM()
+	question = request.json.get('question')
+	history_array = request.json.get('history', '')
+	try:
+		history = []
+		for [answer, question] in history_array:
+			history.append((answer, question))
+	except:
+		history = ""
+	oracle = QueryLLM()
     #print(oracle.ask(question, history))
     #return jsonify({'message': 'Question answered'})
-    return jsonify(oracle.ask(question, history))
+	return jsonify(oracle.ask(question, history))
 
 if __name__ == '__main__':
     app.run(debug=True)
