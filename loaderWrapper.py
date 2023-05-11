@@ -17,12 +17,12 @@ class LoaderWrapper():
         self.metadata["timestamp"] = time.time()
         if self.type == "file":
             self.metadata["source"] = os.path.basename(self.path)
-            self.metadata["filetype"] = self.path.rsplit('.', 1)[1].lower()
-            if self.metadata["filetype"] == '.txt':
+            self.metadata["filetype"] = self.path.rsplit('.', 1)[-1].lower()
+            if self.metadata["filetype"] == 'txt':
                 loader = TextLoader(self.path)
-            elif self.metadata["filetype"] == '.pdf':
+            elif self.metadata["filetype"] == 'pdf':
                 loader = PyPDFLoader(self.path)
-            elif self.metadata["filetype"] == '.epub':
+            elif self.metadata["filetype"] == 'epub':
                 loader = UnstructuredEPubLoader(self.path)
             else:
                 raise Exception("Unsupported filetype")
