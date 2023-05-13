@@ -1,4 +1,5 @@
 import os,sys
+from typing import List
 from flask import Flask, jsonify, flash, request, redirect, url_for
 from werkzeug.utils import secure_filename
 from loaderWrapper import LoaderWrapper
@@ -6,6 +7,8 @@ from langchain.text_splitter import TokenTextSplitter
 from langchain.document_loaders import TextLoader
 from db import DB
 from queryLLM import QueryLLM
+from langchain.docstore.document import Document
+
 
 UPLOAD_FOLDER = '/tmp'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'epub'}
@@ -17,16 +20,32 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def get_sources():
     from db import DB
     db = DB()
-    db.cursor.execute("select distinct cmetadata->>'source' AS source from public.langchain_pg_embedding;")
-    rows = db.cursor.fetchall()
-    return jsonify(rows)
+    
+    from sqlalchemy.orm import Session
+    import sqlalchemy
+
+    # get all sources already in db
+    already_ingested = []
+    with Session(db.vectorstore._conn) as session:
+        statement = sqlalchemy.text("select distinct(cmetadata->>'source') from public.langchain_pg_embedding;")
+        rows = session.execute(statement).fetchall()
+        session.close()
+        print(rows)
+    data = [row[0] for row in rows]
+    return jsonify(data)
 
 # delete a source
 @app.route('/sources/<string:source>', methods=['DELETE'])
 def delete_source(source):
     from db import DB
     db = DB()
-    db.cursor.execute("delete from public.langchain_pg_embedding where cmetadata->>'source' = '"+source+"';")
+    from sqlalchemy.orm import Session
+    import sqlalchemy
+    with Session(db.vectorstore._conn) as session:
+        statement = sqlalchemy.text("delete from public.langchain_pg_embedding where cmetadata->>'source' = '"+source+"';")
+        session.execute(statement)
+        session.commit()
+        session.close()
     return jsonify({'message': 'Source deleted'})
 
 # upload a file
@@ -53,25 +72,30 @@ def upload_file():
             # load file
             loader = LoaderWrapper(path=path, type="file")
             documents = loader.load()
-            print(documents,file=sys.stderr)
-            text_splitter = TokenTextSplitter(chunk_size=500, chunk_overlap=100)
-            texts = text_splitter.split_documents(documents)
+            text_splitter = TokenTextSplitter(chunk_size=chunk_size, chunk_overlap=100)
+            
+            # print documents to standard output for debugging
+            for index,document in enumerate(documents):
+                print("Document "+str(index))
+                print(document.page_content)
+                print(document.metadata)
+                print("-"*80)
+
             from db import DB
             db = DB()
-            print(texts,file=sys.stderr)
-            ids = db.vectorstore.add_documents(texts)
-            print(ids,file=sys.stderr)
-            return redirect("/",200)
+            ids = db.vectorstore.add_documents(documents)
+            return redirect("/sources",200)
+        else:
+            return redirect("/sources",400)
     return '''
     <!doctype html>
     <title>Upload new File</title>
     <h1>Upload new File</h1>
     <form method=post enctype=multipart/form-data>
-      <input type=file name=file>
+      <input type=file name=file accept=".txt,.pdf,.epub">
       <input type=submit value=Upload>
     </form>
     '''
-
 
 # Ask a question to your data
 @app.route('/ask', methods=['POST'])

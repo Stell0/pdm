@@ -21,9 +21,6 @@ class DB():
             user=user,
             password=password
         )
-        self.conn = psycopg.connect(connection_string)
-        self.conn.autocommit = True
-        self.cursor = self.conn.cursor()
 
         CONNECTION_STRING = PGVector.connection_string_from_db_params(
     	    driver="psycopg2",
@@ -34,7 +31,6 @@ class DB():
     	    password=password,
 	    )
 
-        self.cursor.execute("CREATE EXTENSION IF NOT EXISTS vector") 
         self.vectorstore = PGVector(
 		    connection_string=CONNECTION_STRING,
 		    embedding_function=embedding,

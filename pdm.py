@@ -1,5 +1,3 @@
-import json
-import time
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import VectorStore
@@ -7,100 +5,12 @@ from langchain.vectorstores.pgvector import PGVector,DistanceStrategy
 from langchain.text_splitter import TokenTextSplitter
 from langchain.document_loaders import TextLoader
 from langchain.llms import OpenAI
-from typing import Any, List, Optional
-from langchain.docstore.document import Document
 from langchain.chains import ConversationalRetrievalChain
 import os
-from pathlib import Path
 import psycopg
-from langchain.document_loaders import ReadTheDocsLoader
-from langchain.document_loaders.base import BaseLoader
-
-
-class MyReadTheDocsLoader(ReadTheDocsLoader):
-	def load(self) -> List[Document]:
-		"""Load documents."""
-		from bs4 import BeautifulSoup
-
-		def _clean_data(data: str) -> str:
-			soup = BeautifulSoup(data, **self.bs_kwargs)
-			data = []
-			h1_tags = soup.find_all('h1')
-			for h1_tag in h1_tags:
-				if h1_tag and h1_tag.text:
-					title = h1_tag.text.replace("¶", "")
-				else:
-					continue
-				try:
-					text = ''
-					for p in h1_tag.find_next_siblings():
-						if p.name == 'section' or '©' in p.text:
-							break
-						text += p.text + "\n\n"
-					text = text.strip()
-					data.append(title+"\n"+text)
-				except:
-					continue
-				h2_tags = soup.find_all({'h2','h3'})
-				for h2_tag in h2_tags:
-					if h2_tag and h2_tag.text:
-						section_title = h2_tag.text.replace("¶", "")
-					else:
-						continue
-					try:
-						text = ''
-						for p in h2_tag.find_next_siblings():
-							if p.name == 'section' or '©' in p.text:
-								break
-							text += p.text
-						text = text.replace("¶", "").strip()
-						data.append(title+' - '+section_title+"\n"+text)
-					except:
-						continue
-			return "\n\n".join(data)
-
-		docs = []
-		for p in Path(self.file_path).rglob("*"):
-			if p.is_dir():
-				continue
-			with open(p, encoding=self.encoding, errors=self.errors) as f:
-				text = _clean_data(f.read())
-				metadata = {"source": str(p)}
-			docs.append(Document(page_content=text, metadata=metadata))
-		return docs
-
-class FreshdeskLoader(BaseLoader):
-	def __init__(
-        self,
-        path: str,
-		**kwargs: Optional[Any]
-	):
-		"""Initialize path."""
-		self.path = path
-		self.bs_kwargs = kwargs
-		
-	def load(self) -> List[Document]:
-		"""Load documents."""
-		with open(self.path) as f:
-			data = json.load(f)
-			docs = []
-			metadata = {
-				"source": self.path,
-				"filetype": "freshdesk",
-				"timestamp": time.time(),
-				"type": "file",
-				"faq_id": data["id"],
-				"faq_title": data["title"],
-				"created_at": data["created_at"],
-				"updated_at": data["updated_at"],
-				"tags": data["tags"],
-				"category_id": data["category_id"],
-				"folder_id": data["folder_id"]
-				}
-			docs.append(Document(page_content=data["description_text"], metadata=metadata))
-			return docs
-
-
+from CustomLoaders import MyReadTheDocsLoader, FreshdeskLoader
+import sqlalchemy
+from sqlalchemy.orm import Session
 
 def initdb():
 	# initialize db
@@ -141,15 +51,20 @@ def initdb():
 	vectordb.create_vector_extension()
 	vectordb.create_tables_if_not_exists()
 	vectordb.create_collection()
-	return (vectordb, connection, cursor)
+	return vectordb
 
-def data_ingest(vectordb: VectorStore, connection: psycopg.connection, cursor: psycopg.cursor):
+def data_ingest(vectordb: VectorStore):
 	# check if there are new sources in sources folder
 	sources = os.listdir("sources")
 
 	for source in sources:
 		# skip source if it is already in db
 		try:
+			with Session(vectordb._conn) as session:
+				statement = sqlalchemy.text("CREATE EXTENSION IF NOT EXISTS vector")
+				session.execute(statement)
+				session.commit()
+			cursor=vectordb._conn.cursor()
 			cursor.execute("select count(*) from public.langchain_pg_embedding where cmetadata->>'source' LIKE 'sources/"+source+"%';")
 			if cursor.fetchone()[0] > 0:
 				continue
@@ -191,9 +106,9 @@ def data_ingest(vectordb: VectorStore, connection: psycopg.connection, cursor: p
 
 if __name__ == "__main__":
 	# initialize vector db
-	(vectordb, connection, cursor) = initdb()
+	vectordb = initdb()
 	# ingest new data
-	data_ingest(vectordb, connection, cursor)
+	data_ingest(vectordb)
 
 	# chat with the user
 	from langchain.chains.llm import LLMChain
