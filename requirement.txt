@@ -10,3 +10,4 @@ pandoc
 pypdf
 flask
 unstructured
+flask-cors
