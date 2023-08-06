@@ -1,6 +1,7 @@
 import os,sys
 from typing import List
 from flask import Flask, jsonify, flash, request, redirect, url_for
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from loaderWrapper import LoaderWrapper
 from langchain.text_splitter import TokenTextSplitter
@@ -14,6 +15,7 @@ UPLOAD_FOLDER = '/tmp'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'epub'}
 
 app = Flask(__name__)
+CORS(app)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.route('/sources', methods=['GET'])
