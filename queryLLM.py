@@ -14,7 +14,7 @@ class QueryLLM():
     def __init__(self):
         self.db = db.DB()
 
-    def ask(self, query, history):
+    def ask(self, query, history, filter):
         llm = OpenAI(
 			verbose=True,
 			temperature=0
@@ -32,6 +32,7 @@ class QueryLLM():
         result = qa({"question": query, "chat_history": history})
         result['history'] = [(query, result["answer"])]
         sources = []
+        # TODO filter
         for doc in result["source_documents"]:
             sources.append(doc.metadata["source"])
         sources = list(set(sources))
