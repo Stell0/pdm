@@ -11,3 +11,4 @@ pypdf
 flask
 unstructured
 flask-cors
+waitress
