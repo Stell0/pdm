@@ -104,6 +104,7 @@ def upload_file():
 def ask():
 	question = request.json.get('question')
 	history_array = request.json.get('history', '')
+	filter = request.json.get('filter', '')
 	try:
 		history = []
 		for [answer, question] in history_array:
@@ -113,7 +114,26 @@ def ask():
 	oracle = QueryLLM()
     #print(oracle.ask(question, history))
     #return jsonify({'message': 'Question answered'})
-	return jsonify(oracle.ask(question, history))
+	return jsonify(oracle.ask(question, history, filter))
+
+# get source
+@app.route('/sources/<string:source>', methods=['GET'])
+def get_source(source):
+    #from urllib.parse import unquote
+    #source = unquote(source)
+    from db import DB
+    db = DB()
+    from sqlalchemy.orm import Session
+    import sqlalchemy
+    with Session(db.vectorstore._conn) as session:
+        statement = sqlalchemy.text("select * from public.langchain_pg_embedding where cmetadata->>'source' = '"+source+"';")
+        rows = session.execute(statement).fetchall()
+        session.close()
+        print(rows)
+    data = []
+    for row in rows:
+        data.append({"id":row[0], "metadata":row[2]})
+    return jsonify(data)
 
 if __name__ == '__main__':
     app.run(debug=True)

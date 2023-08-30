@@ -49,9 +49,9 @@ def make_context(question: str, history: str) -> str:
 		# get token length of current document
 		doc_token_length = len(encoding.encode(doc.page_content))
 		# get token length of all documents
-		documments_token_length = len(encoding.encode(documents))
+		documents_token_length = len(encoding.encode(documents))
 		# if there are enough tokens left, add document to documents
-		if doc_token_length + documments_token_length + system_message_token_length < 3800:
+		if doc_token_length + documents_token_length + system_message_token_length < 3800:
 			documents += doc.page_content+"\n\n"
 		
 	summary = chat(
